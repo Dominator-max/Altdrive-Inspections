@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle Inspections Portal</title>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #ea580c;
+      --primary-hover: #c2410c;
+      --bg: #ffffff;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --border: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding-bottom: 60px; }
+
+    header { background-color: var(--card-bg); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    header h1 { font-size: 18px; font-weight: 700; color: var(--text); }
+    nav { display: flex; gap: 10px; flex-wrap: wrap; }
+    nav button { background: none; border: 1px solid var(--border); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    nav button.active { background-color: var(--primary); color: #ffffff; border-color: var(--primary); }
+    #signOutBtn { background:#f1f5f9; border:1px solid #cbd5e1; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; }
+
+    .container { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    h2 { font-size: 18px; margin-bottom: 16px; color: var(--text); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width:640px){ .grid-2{ grid-template-columns: 1fr; } .analytics-grid{ grid-template-columns: repeat(2,1fr) !important; } }
+    .form-group { display: flex; flex-direction: column; margin-bottom: 14px; }
+    label { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #334155; }
+    input, select, textarea { padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; outline: none; width:100%; background:#fff; color:var(--text); }
+    input:disabled { background:#f8fafc; color:#64748b; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 70px; }
+
+    .btn-submit { background-color: var(--primary); color: #ffffff; border: none; padding: 12px 20px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; }
+    .btn-submit:hover { background-color: var(--primary-hover); }
+    .btn-action { background-color: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; padding: 6px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-action:hover { background-color: #e2e8f0; }
+    .btn-print { background-color: #0f172a; color: #ffffff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+
+    .analytics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #f8fafc; padding: 16px; border: 1px solid var(--border); border-radius: 8px; text-align: center; }
+    .stat-value { font-size: 24px; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; white-space: nowrap; }
+    th, td { padding: 12px 12px; border-bottom: 1px solid var(--border); }
+    th { background-color: #f1f5f9; font-weight: 600; color: #475569; }
+
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-pending { background-color: #fef08a; color: #854d0e; }
+    .badge-unpaid { background-color: #fee2e2; color: #991b1b; }
+    .badge-paid { background-color: #dcfce7; color: #166534; }
+    .badge-pass { background-color: #dcfce7; color: #166534; }
+    .badge-fail { background-color: #fee2e2; color: #991b1b; }
+
+    .ledger-block { border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 24px; overflow: hidden; background: #ffffff; }
+    .ledger-header { background: #f8fafc; padding: 12px 16px; border-bottom: 1px solid #cbd5e1; font-weight: 600; font-size: 14px; }
+
+    .hidden { display: none !important; }
+
+    .modal-overlay { position: fixed; inset:0; background: rgba(15,23,42,0.5); display:flex; align-items:center; justify-content:center; z-index:200; padding:16px; }
+    .modal-box { background:#fff; border-radius:10px; padding:22px; width:100%; max-width:360px; }
+    .modal-box h3 { font-size:16px; margin-bottom:14px; }
+
+    .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 300; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .toast.show { opacity: 1; }
+
+    .banner-warn { background:#fff7ed; color:#9a3412; border:1px solid #fdba74; border-radius:8px; padding:10px 14px; font-size:12.5px; margin-bottom:16px; }
+
+    #loginScreen { min-height:100vh; display:none; align-items:center; justify-content:center; background:#f8fafc; padding:20px; }
+    #loginBox { background:#fff; border:1px solid var(--border); border-radius:10px; padding:26px; max-width:340px; width:100%; }
+    #loginBox h2 { font-size:17px; margin-bottom:4px; }
+    #loginBox p.sub { font-size:12.5px; color:#64748b; margin-bottom:18px; }
+    #loginError { display:none; color:#b91c1c; font-size:12.5px; margin-bottom:10px; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+      header, nav, .btn-print, .card > div:first-child { display: none !important; }
+      @page { size: A4 landscape; margin: 15mm; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div id="loginBox">
+    <h2>Sign in</h2>
+    <p class="sub">Use your team account to access the inspections portal.</p>
+    <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@company.com"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="loginPassword"></div>
+    <div id="loginError"></div>
+    <button class="btn-submit" id="loginBtn">Sign in</button>
+    <p class="sub" style="margin-top:14px;">No account? Ask whoever manages this tool to add you in the Firebase console (Authentication → Users → Add user).</p>
+  </div>
+</div>
+
+<div id="mainApp" class="hidden">
+  <header>
+    <h1>Vehicle Inspections Portal</h1>
+    <nav>
+      <button id="nav-order" class="active" onclick="switchTab('order')">Order Inspection</button>
+      <button id="nav-dashboard" onclick="switchTab('dashboard')">Analytics & Records</button>
+      <button id="nav-unpaid" onclick="switchTab('unpaid')">Unpaid Ledger</button>
+      <button id="nav-settings" onclick="switchTab('settings')">Agent Contacts</button>
+    </nav>
+    <button id="signOutBtn" class="hidden" onclick="doSignOut()">Sign out</button>
+  </header>
+
+  <div class="container">
+
+    <div id="storageWarning"></div>
+
+    <div id="tab-order" class="card">
+      <h2>Log New Vehicle Inspection</h2>
+      <form id="inspection-form" onsubmit="handleFormSubmit(event)">
+
+        <div class="grid-2">
+          <div class="form-group"><label>Request Date</label><input type="date" id="requestDate" required></div>
+          <div class="form-group"><label>Requestor Name</label><input type="text" id="requestorName" required placeholder="Internal staff name"></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group"><label>Client / Customer Name</label><input type="text" id="clientName" required placeholder="Customer buying the vehicle"></div>
+          <div class="form-group">
+            <label>Inspection Agent</label>
+            <select id="agentSelect" onchange="autoFillAgent()" required>
+              <option value="">Select Partner</option>
+              <option value="Cars45">Cars45 (₦20,000)</option>
+              <option value="LegitCar Limited">LegitCar Limited (₦30,000)</option>
+              <option value="AGNATE services">AGNATE services (₦35,000)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group"><label>Agent Email Address</label><input type="email" id="agentEmail" required placeholder="For notification dispatch"></div>
+          <div class="form-group"><label>Agent Phone</label><input type="tel" id="agentPhone" placeholder="Auto-fills from saved contacts"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Agent Bank & Account (fixed — cannot be edited)</label>
+          <input type="text" id="agentAccountDetails" disabled placeholder="Auto-fills on selection">
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group"><label>Vehicle Brand</label><input type="text" id="vehicleBrand" required placeholder="e.g. Toyota"></div>
+          <div class="form-group"><label>Vehicle Model</label><input type="text" id="vehicleModel" required placeholder="e.g. Corolla"></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group"><label>Vehicle Year</label><input type="number" id="vehicleYear" required placeholder="e.g. 2018"></div>
+          <div class="form-group">
+            <label>Vehicle Status</label>
+            <select id="vehicleStatus" required>
+              <option value="Foreign Used">Foreign Used</option>
+              <option value="Nigerian Used">Nigerian Used</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group"><label>Chassis Number / VIN</label><input type="text" id="chassisNumber" required></div>
+        <div class="form-group"><label>Full Physical Address</label><textarea id="fullAddress" required placeholder="Dealership or inspection location"></textarea></div>
+
+        <div class="grid-2">
+          <div class="form-group"><label>Person of Contact Name</label><input type="text" id="contactName" required placeholder="Who the agent meets"></div>
+          <div class="form-group"><label>Person of Contact Phone</label><input type="tel" id="contactPhone" required></div>
+        </div>
+
+        <div id="formError" class="hidden" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:10px;"></div>
+        <button type="submit" class="btn-submit">Save & Email Agent</button>
+      </form>
+    </div>
+
+    <div id="tab-dashboard" class="card hidden">
+      <h2>Analytics Overview</h2>
+      <div class="analytics-grid">
+        <div class="stat-card"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total Logs</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-cars45">0</div><div class="stat-label">Cars45</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-legit">0</div><div class="stat-label">LegitCar</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-agnate">0</div><div class="stat-label">AGNATE</div></div>
+      </div>
+
+      <h2>Inspection Records</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Request Date</th><th>Client</th><th>Vehicle</th><th>Agent</th><th>Grade</th><th>TAT</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="records-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-unpaid" class="card hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap:wrap; gap:8px;">
+        <h2>Unpaid Inspections Accounting Ledger</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-print" onclick="window.print()">Print / Export PDF</button>
+          <button class="btn-action" onclick="exportLedgerCSV()">Export CSV</button>
+          <button class="btn-action" onclick="exportLedgerExcel()">Export Excel</button>
+        </div>
+      </div>
+      <div id="print-area"><div id="ledger-entries"></div></div>
+    </div>
+
+    <div id="tab-settings" class="card hidden">
+      <h2>Agent Contacts</h2>
+      <p style="font-size:13px;color:#64748b;margin-bottom:16px;">Save each agent's email and phone once — they'll auto-fill every time you select that agent on the order form.</p>
+      <div id="agentContactsForm"></div>
+      <button class="btn-submit" onclick="saveAgentContacts()">Save Contacts</button>
+    </div>
+
+  </div>
+</div>
+
+<div id="reportModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>Add inspection report</h3>
+    <div class="form-group"><label>Score (0–100)</label><input type="number" id="modalScore" min="0" max="100"></div>
+    <div class="form-group"><label>Report date</label><input type="date" id="modalReportDate"></div>
+    <div id="modalError" class="hidden" style="color:#b91c1c;font-size:12.5px;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-submit" style="margin-top:0;" onclick="saveReportDetails()">Save</button>
+      <button class="btn-action" onclick="closeReportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ============ Firebase config ============
+  // Paste your Firebase project's config here (Firebase console → Project settings → General → Your apps → SDK setup and configuration)
+  const firebaseConfig = {
+    apiKey: "AIzaSyC6MYZewYVN6sreX7RlLjUrUBKQL72nzzo",
+    authDomain: "altdrive-inspections.firebaseapp.com",
+    projectId: "altdrive-inspections",
+    storageBucket: "altdrive-inspections.firebasestorage.app",
+    messagingSenderId: "557257352007",
+    appId: "1:557257352007:web:e68233a306b00220552262"
+  };
+  const firebaseConfigured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('PASTE_');
+  let db = null, auth = null;
+
+  const agentProfiles = {
+    "Cars45": { fee: 20000, bank: "WEMA BANK", account: "7256734484", ledgerName: "CARS45" },
+    "LegitCar Limited": { fee: 30000, bank: "ALTBANK", account: "0510166013", ledgerName: "LEGITRON LTD" },
+    "AGNATE services": { fee: 35000, bank: "STERLING BANK", account: "0501272400", ledgerName: "AGNATE LIMITED" }
+  };
+
+  let records = [];
+  let agentContacts = { "Cars45": {email:"",phone:""}, "LegitCar Limited": {email:"",phone:""}, "AGNATE services": {email:"",phone:""} };
+  let currentEditId = null;
+
+  // In-memory fallback so the app still works before Firebase is wired up.
+  const memoryStore = {};
+  const kv = {
+    async get(key){
+      if(db){
+        const doc = await db.collection('inspections_kv').doc(key).get();
+        return doc.exists ? doc.data().value : null;
+      }
+      return memoryStore[key] || null;
+    },
+    async set(key, value){
+      if(db){
+        await db.collection('inspections_kv').doc(key).set({ value, updatedAt: new Date().toISOString() });
+      }else{
+        memoryStore[key] = value;
+      }
+    }
+  };
+
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  window.addEventListener('error', (e)=>{
+    console.error(e.error || e.message);
+    toast('Something went wrong: ' + (e.message||'unknown error').slice(0,60));
+  });
+
+  async function loadAllData(){
+    try{
+      const raw = await kv.get('inspections_data');
+      records = raw ? JSON.parse(raw) : [];
+    }catch(e){ records = []; }
+    try{
+      const raw2 = await kv.get('agent_contacts');
+      if(raw2) agentContacts = JSON.parse(raw2);
+    }catch(e){ /* keep defaults */ }
+
+    document.getElementById('storageWarning').innerHTML = firebaseConfigured ? '' :
+      '<div class="banner-warn">Firebase isn\'t connected yet — records will only last for this browser session. Paste your Firebase config near the top of the script to turn on real saving for the whole team.</div>';
+
+    initializeForm();
+    renderAgentContactsForm();
+    switchTab('order');
+  }
+
+  async function persistRecords(){
+    try{ await kv.set('inspections_data', JSON.stringify(records)); }
+    catch(e){ toast('Could not save — check your connection'); }
+  }
+  async function persistAgentContacts(){
+    try{ await kv.set('agent_contacts', JSON.stringify(agentContacts)); toast('Agent contacts saved'); }
+    catch(e){ toast('Could not save contacts'); }
+  }
+
+  function initializeForm() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById("requestDate").value = today;
+  }
+
+  function autoFillAgent() {
+    const selected = document.getElementById("agentSelect").value;
+    const acctField = document.getElementById("agentAccountDetails");
+    const emailField = document.getElementById("agentEmail");
+    const phoneField = document.getElementById("agentPhone");
+    if (selected && agentProfiles[selected]) {
+      const p = agentProfiles[selected];
+      acctField.value = `${p.bank} - ${p.account}`;
+      const saved = agentContacts[selected] || {};
+      emailField.value = saved.email || '';
+      phoneField.value = saved.phone || '';
+    } else {
+      acctField.value = "";
+      emailField.value = "";
+      phoneField.value = "";
+    }
+  }
+
+  function switchTab(tabName) {
+    ['order','dashboard','unpaid','settings'].forEach(t=>{
+      document.getElementById('tab-'+t).classList.add('hidden');
+      document.getElementById('nav-'+t).classList.remove('active');
+    });
+    document.getElementById('tab-'+tabName).classList.remove('hidden');
+    document.getElementById('nav-'+tabName).classList.add('active');
+    if(tabName==='dashboard') renderDashboard();
+    if(tabName==='unpaid') renderUnpaidLedger();
+    if(tabName==='settings') renderAgentContactsForm();
+  }
+
+  async function handleFormSubmit(e) {
+    e.preventDefault();
+    const errBox = document.getElementById('formError');
+    errBox.classList.add('hidden');
+
+    const selectedAgent = document.getElementById("agentSelect").value;
+    const requiredIds = ['requestDate','requestorName','clientName','agentSelect','agentEmail','vehicleBrand','vehicleModel','vehicleYear','vehicleStatus','chassisNumber','fullAddress','contactName','contactPhone'];
+    const missing = requiredIds.filter(id => !document.getElementById(id).value.trim());
+    if(missing.length){
+      errBox.textContent = 'Please fill in every field before saving.';
+      errBox.classList.remove('hidden');
+      errBox.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+
+    const newRecord = {
+      id: Date.now(),
+      requestDate: document.getElementById("requestDate").value,
+      requestorName: document.getElementById("requestorName").value,
+      clientName: document.getElementById("clientName").value,
+      agent: selectedAgent,
+      agentEmail: document.getElementById("agentEmail").value,
+      agentPhone: document.getElementById("agentPhone").value,
+      agentFee: agentProfiles[selectedAgent].fee,
+      vehicleBrand: document.getElementById("vehicleBrand").value,
+      vehicleModel: document.getElementById("vehicleModel").value,
+      vehicleYear: document.getElementById("vehicleYear").value,
+      vehicleStatus: document.getElementById("vehicleStatus").value,
+      chassis: document.getElementById("chassisNumber").value,
+      address: document.getElementById("fullAddress").value,
+      contactName: document.getElementById("contactName").value,
+      contactPhone: document.getElementById("contactPhone").value,
+      paymentStatus: "Pending Report",
+      score: null,
+      grade: "N/A",
+      reportDate: null,
+      turnaroundTime: "N/A"
+    };
+
+    records.unshift(newRecord);
+    await persistRecords();
+
+    // Offer to save this agent's contact if it's new/changed
+    const saved = agentContacts[selectedAgent] || {};
+    if(saved.email !== newRecord.agentEmail || saved.phone !== newRecord.agentPhone){
+      agentContacts[selectedAgent] = { email: newRecord.agentEmail, phone: newRecord.agentPhone };
+      await persistAgentContacts();
+    }
+
+    const subject = encodeURIComponent(`New Vehicle Inspection Request: ${newRecord.vehicleBrand} ${newRecord.vehicleModel}`);
+    const body = encodeURIComponent(`Hello,\n\nPlease conduct an inspection for the following vehicle:\n\nClient: ${newRecord.clientName}\nBrand: ${newRecord.vehicleBrand}\nModel: ${newRecord.vehicleModel}\nYear: ${newRecord.vehicleYear}\nStatus: ${newRecord.vehicleStatus}\nChassis: ${newRecord.chassis}\nAddress: ${newRecord.address}\n\nContact Person: ${newRecord.contactName}\nPhone: ${newRecord.contactPhone}\n\nPlease send the report back once completed.\n\nThank you.`);
+    window.open(`mailto:${newRecord.agentEmail}?subject=${subject}&body=${body}`, '_blank');
+
+    document.getElementById("inspection-form").reset();
+    initializeForm();
+    toast('Inspection logged');
+    switchTab('dashboard');
+  }
+
+  function openReportModal(id){
+    currentEditId = id;
+    document.getElementById('modalScore').value = '';
+    document.getElementById('modalReportDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('modalError').classList.add('hidden');
+    document.getElementById('reportModal').classList.remove('hidden');
+  }
+  function closeReportModal(){
+    document.getElementById('reportModal').classList.add('hidden');
+    currentEditId = null;
+  }
+  async function saveReportDetails(){
+    const scoreVal = document.getElementById('modalScore').value;
+    const dateVal = document.getElementById('modalReportDate').value;
+    const errBox = document.getElementById('modalError');
+    if(scoreVal === '' || Number(scoreVal) < 0 || Number(scoreVal) > 100 || !dateVal){
+      errBox.textContent = 'Enter a score between 0 and 100, and a report date.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+    const record = records.find(r => r.id === currentEditId);
+    if(!record) return closeReportModal();
+
+    const score = Number(scoreVal);
+    record.score = score;
+    record.grade = score >= 70 ? "Pass" : "Fail";
+    record.reportDate = dateVal;
+
+    const req = new Date(record.requestDate);
+    const rep = new Date(dateVal);
+    const diffDays = Math.round(Math.abs(rep - req) / 86400000);
+    record.turnaroundTime = diffDays === 0 ? "Same Day" : `${diffDays} Days`;
+    record.paymentStatus = "Unpaid";
+
+    await persistRecords();
+    closeReportModal();
+    toast('Report saved');
+    renderDashboard();
+  }
+
+  async function markPaid(id){
+    const record = records.find(r => r.id === id);
+    if(record){ record.paymentStatus = "Paid"; await persistRecords(); toast('Marked as paid'); renderDashboard(); }
+  }
+  async function markUnpaid(id){
+    const record = records.find(r => r.id === id);
+    if(record){ record.paymentStatus = "Unpaid"; await persistRecords(); toast('Marked as unpaid'); renderDashboard(); }
+  }
+
+  function renderDashboard() {
+    document.getElementById("stat-total").innerText = records.length;
+    document.getElementById("stat-cars45").innerText = records.filter(r => r.agent === "Cars45").length;
+    document.getElementById("stat-legit").innerText = records.filter(r => r.agent === "LegitCar Limited").length;
+    document.getElementById("stat-agnate").innerText = records.filter(r => r.agent === "AGNATE services").length;
+
+    const tbody = document.getElementById("records-table-body");
+    tbody.innerHTML = "";
+    if (records.length === 0) {
+      tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:#64748b;'>No inspections recorded yet.</td></tr>";
+      return;
+    }
+    records.forEach(r => {
+      let actionBtn = "", statusBadge = "";
+      let gradeBadge = r.grade === "Pass" ? `<span class="badge badge-pass">${r.score}% Pass</span>` : r.grade === "Fail" ? `<span class="badge badge-fail">${r.score}% Fail</span>` : "N/A";
+
+      if (r.paymentStatus === "Pending Report") {
+        statusBadge = `<span class="badge badge-pending">Pending Report</span>`;
+        actionBtn = `<button class="btn-action" onclick="openReportModal(${r.id})">Add Report</button>`;
+      } else if (r.paymentStatus === "Unpaid") {
+        statusBadge = `<span class="badge badge-unpaid">Unpaid</span>`;
+        actionBtn = `<button class="btn-action" onclick="markPaid(${r.id})">Mark Paid</button>`;
+      } else {
+        statusBadge = `<span class="badge badge-paid">Paid</span>`;
+        actionBtn = `<button class="btn-action" onclick="markUnpaid(${r.id})">Mark Unpaid</button>`;
+      }
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.requestDate}</td>
+        <td>${r.clientName}</td>
+        <td>${r.vehicleBrand} ${r.vehicleModel}</td>
+        <td>${r.agent}</td>
+        <td>${gradeBadge}</td>
+        <td>${r.turnaroundTime}</td>
+        <td>${statusBadge}</td>
+        <td>${actionBtn}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderUnpaidLedger() {
+    const unpaid = records.filter(r => r.paymentStatus === "Unpaid");
+    const container = document.getElementById("ledger-entries");
+    container.innerHTML = "";
+    if (unpaid.length === 0) {
+      container.innerHTML = "<p style='color:#64748b;'>No unpaid inspections found.</p>";
+      return;
+    }
+    unpaid.forEach(r => {
+      const totalCollected = 40000;
+      const p = agentProfiles[r.agent];
+      const grossRemainder = totalCollected - p.fee;
+      const sinkingFund = Math.round(grossRemainder * 0.02);
+      const netCommission = grossRemainder - sinkingFund;
+      const desc = `INSPECTION - ${r.clientName.toUpperCase()} - ${r.vehicleBrand.toUpperCase()} ${r.vehicleModel.toUpperCase()} (${r.chassis.toUpperCase()})`;
+
+      const block = document.createElement("div");
+      block.className = "ledger-block";
+      block.innerHTML = `
+        <div class="ledger-header">Request: ${r.vehicleBrand} ${r.vehicleModel} | Client: ${r.clientName} | Grade: ${r.grade}</div>
+        <table>
+          <thead><tr><th>ENTRY</th><th>ACCOUNT</th><th>ACCOUNT NAME</th><th>BANK</th><th>AMOUNT (NGN)</th><th>DESCRIPTION</th></tr></thead>
+          <tbody>
+            <tr><td>Dr</td><td>0505420261</td><td>ALTDRIVE COLLECTION</td><td>ALTBANK</td><td>40,000.00</td><td>${desc}</td></tr>
+            <tr><td>Cr</td><td>${p.account}</td><td>${p.ledgerName}</td><td>${p.bank}</td><td>${p.fee.toLocaleString(undefined,{minimumFractionDigits:2})}</td><td>${desc}</td></tr>
+            <tr><td>Cr</td><td>1/566/430326/0/10</td><td>ALTDRIVE COMMISSION</td><td>-</td><td>${netCommission.toLocaleString(undefined,{minimumFractionDigits:2})}</td><td>BNG COMMISSION</td></tr>
+            <tr><td>Cr</td><td>0511958303</td><td>AMH/SINKING FUND</td><td>-</td><td>${sinkingFund.toLocaleString(undefined,{minimumFractionDigits:2})}</td><td>BNG SINKING FUND</td></tr>
+          </tbody>
+        </table>`;
+      container.appendChild(block);
+    });
+  }
+
+  function buildLedgerRows(){
+    const unpaid = records.filter(r => r.paymentStatus === "Unpaid");
+    const totalCollected = 40000;
+    const rows = [];
+    unpaid.forEach(r => {
+      const p = agentProfiles[r.agent];
+      const grossRemainder = totalCollected - p.fee;
+      const sinkingFund = Math.round(grossRemainder * 0.02);
+      const netCommission = grossRemainder - sinkingFund;
+      const desc = `INSPECTION - ${r.clientName.toUpperCase()} - ${r.vehicleBrand.toUpperCase()} ${r.vehicleModel.toUpperCase()} (${r.chassis.toUpperCase()})`;
+
+      rows.push({ Entry:"Dr", Account:"0505420261", "Account Name":"ALTDRIVE COLLECTION", Bank:"ALTBANK", "Amount (NGN)":totalCollected, Description:desc, Vehicle:`${r.vehicleBrand} ${r.vehicleModel}`, Client:r.clientName, "Request Date":r.requestDate });
+      rows.push({ Entry:"Cr", Account:p.account, "Account Name":p.ledgerName, Bank:p.bank, "Amount (NGN)":p.fee, Description:desc, Vehicle:`${r.vehicleBrand} ${r.vehicleModel}`, Client:r.clientName, "Request Date":r.requestDate });
+      rows.push({ Entry:"Cr", Account:"1/566/430326/0/10", "Account Name":"ALTDRIVE COMMISSION", Bank:"-", "Amount (NGN)":netCommission, Description:"BNG COMMISSION", Vehicle:`${r.vehicleBrand} ${r.vehicleModel}`, Client:r.clientName, "Request Date":r.requestDate });
+      rows.push({ Entry:"Cr", Account:"0511958303", "Account Name":"AMH/SINKING FUND", Bank:"-", "Amount (NGN)":sinkingFund, Description:"BNG SINKING FUND", Vehicle:`${r.vehicleBrand} ${r.vehicleModel}`, Client:r.clientName, "Request Date":r.requestDate });
+    });
+    return rows;
+  }
+
+  function exportLedgerCSV(){
+    const rows = buildLedgerRows();
+    if(!rows.length){ toast('No unpaid inspections to export'); return; }
+    const headers = Object.keys(rows[0]);
+    const escapeCell = (v) => `"${String(v).replace(/"/g,'""')}"`;
+    const csv = [headers.join(',')].concat(
+      rows.map(r => headers.map(h => escapeCell(r[h])).join(','))
+    ).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `unpaid-inspections-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV downloaded');
+  }
+
+  function exportLedgerExcel(){
+    const rows = buildLedgerRows();
+    if(!rows.length){ toast('No unpaid inspections to export'); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:6},{wch:16},{wch:22},{wch:14},{wch:14},{wch:40},{wch:22},{wch:20},{wch:12}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Unpaid Inspections');
+    XLSX.writeFile(wb, `unpaid-inspections-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast('Excel file downloaded');
+  }
+
+  function renderAgentContactsForm(){
+    const wrap = document.getElementById('agentContactsForm');
+    wrap.innerHTML = Object.keys(agentProfiles).map(a => `
+      <div class="grid-2" style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>${a} — Email</label>
+          <input type="email" class="contact-email" data-agent="${a}" value="${(agentContacts[a]&&agentContacts[a].email)||''}" placeholder="agent@example.com">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>${a} — Phone</label>
+          <input type="tel" class="contact-phone" data-agent="${a}" value="${(agentContacts[a]&&agentContacts[a].phone)||''}" placeholder="080...">
+        </div>
+      </div>
+    `).join('');
+  }
+  async function saveAgentContacts(){
+    document.querySelectorAll('.contact-email').forEach(inp=>{
+      const a = inp.dataset.agent;
+      agentContacts[a] = agentContacts[a] || {};
+      agentContacts[a].email = inp.value.trim();
+    });
+    document.querySelectorAll('.contact-phone').forEach(inp=>{
+      const a = inp.dataset.agent;
+      agentContacts[a] = agentContacts[a] || {};
+      agentContacts[a].phone = inp.value.trim();
+    });
+    await persistAgentContacts();
+  }
+
+  // ============ Auth ============
+  function showLogin(){ document.getElementById('loginScreen').style.display='flex'; document.getElementById('mainApp').classList.add('hidden'); }
+  function showApp(){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('mainApp').classList.remove('hidden');
+    document.getElementById('signOutBtn').classList.toggle('hidden', !firebaseConfigured);
+  }
+  function doSignOut(){ if(auth) auth.signOut(); }
+
+  document.getElementById('loginBtn').addEventListener('click', async ()=>{
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errBox = document.getElementById('loginError');
+    errBox.style.display = 'none';
+    if(!firebaseConfigured){ showApp(); loadAllData(); return; }
+    if(!email || !password){ errBox.textContent = 'Enter both email and password.'; errBox.style.display='block'; return; }
+    try{
+      await auth.signInWithEmailAndPassword(email, password);
+    }catch(e){
+      errBox.textContent = e.message.replace('Firebase: ','');
+      errBox.style.display = 'block';
+    }
+  });
+
+  if(firebaseConfigured){
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    auth.onAuthStateChanged(user=>{
+      if(user){ showApp(); loadAllData(); }
+      else{ showLogin(); }
+    });
+  }else{
+    showApp();
+    loadAllData();
+  }
+</script>
+</body>
+</html>
